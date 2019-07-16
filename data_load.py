@@ -120,10 +120,14 @@ def input_fn(sents1, sents2, vocab_fpath, batch_size, shuffle=False):
         output_shapes=shapes,
         output_types=types,
         args=(sents1, sents2, vocab_fpath))  # <- arguments for generator_fn. converted to np string arrays
-
+    """
+    shuffle的功能为打乱dataset中的元素, 它会维持一个固定大小的buffer，并从该buffer中随机均匀地选择下一个元素
+    """
     if shuffle: # for training
         dataset = dataset.shuffle(128*batch_size)
-
+    """
+    repeat的功能就是将整个序列重复多次，主要用来处理机器学习中的epoch，假设原先的数据是一个epoch，使用repeat(5)就可以将之变成5个epoch
+    """
     dataset = dataset.repeat()  # iterate forever
     dataset = dataset.padded_batch(batch_size, shapes, paddings).prefetch(1)
 

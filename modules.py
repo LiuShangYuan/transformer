@@ -70,6 +70,13 @@ def scaled_dot_product_attention(Q, K, V,
         d_k = Q.get_shape().as_list()[-1]
 
         # dot product
+        """
+        原始的attention中
+        Q: RNN中间输出
+        K: encoder的输出
+        最终序列长度是和Q相关的
+        T_q * T_k
+        """
         outputs = tf.matmul(Q, tf.transpose(K, [0, 2, 1]))  # (N, T_q, T_k)
 
         # scale
@@ -128,15 +135,25 @@ def mask(inputs, queries=None, keys=None, type=None):
     padding_num = -2 ** 32 + 1
     if type in ("k", "key", "keys"):
         # Generate masks
+        """
+        对于padding向量求abs得到0, 其他求abs大于0, tf.sign[>0时返回1;<0时返回-;=0时返回0]
+        """
         masks = tf.sign(tf.reduce_sum(tf.abs(keys), axis=-1))  # (N, T_k)
         masks = tf.expand_dims(masks, 1) # (N, 1, T_k)
         masks = tf.tile(masks, [1, tf.shape(queries)[1], 1])  # (N, T_q, T_k)
 
         # Apply masks to inputs
         paddings = tf.ones_like(inputs) * padding_num
+        """
+        tf.where(input, a,b)，其中a，b均为尺寸一致的tensor，作用是将a中对应input中true的位置的元素值不变，其余元素进行替换，替换成b中对应位置的元素值
+        将padding位置进行mask, 将其对应attention权重设置成很小的数，softmax得到的概率接近0
+        """
         outputs = tf.where(tf.equal(masks, 0), paddings, inputs)  # (N, T_q, T_k)
     elif type in ("q", "query", "queries"):
         # Generate masks
+        """
+        输出的长度应该和query的真实长度相同, padding的部分置位0
+        """
         masks = tf.sign(tf.reduce_sum(tf.abs(queries), axis=-1))  # (N, T_q)
         masks = tf.expand_dims(masks, -1)  # (N, T_q, 1)
         masks = tf.tile(masks, [1, 1, tf.shape(keys)[1]])  # (N, T_q, T_k)
@@ -144,6 +161,10 @@ def mask(inputs, queries=None, keys=None, type=None):
         # Apply masks to inputs
         outputs = inputs*masks
     elif type in ("f", "future", "right"):
+        """
+        一般在decoder解码时，不能关注到未来的信息
+        生成一个对角矩阵, 每个时刻只能关注到当前位置的信息
+        """
         diag_vals = tf.ones_like(inputs[0, :, :])  # (T_q, T_k)
         tril = tf.linalg.LinearOperatorLowerTriangular(diag_vals).to_dense()  # (T_q, T_k)
         masks = tf.tile(tf.expand_dims(tril, 0), [tf.shape(inputs)[0], 1, 1])  # (N, T_q, T_k)

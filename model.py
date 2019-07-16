@@ -78,6 +78,9 @@ class Transformer:
         '''
         with tf.variable_scope("decoder", reuse=tf.AUTO_REUSE):
             decoder_inputs, y, seqlens, sents2 = ys
+            """
+            encoder_inputs 相当于当前已经获得的解码输出内容
+            """
 
             # embedding
             dec = tf.nn.embedding_lookup(self.embeddings, decoder_inputs)  # (N, T2, d_model)
@@ -156,8 +159,10 @@ class Transformer:
         y_hat: (N, T2)
         '''
         decoder_inputs, y, y_seqlen, sents2 = ys
-
-        decoder_inputs = tf.ones((tf.shape(xs[0])[0], 1), tf.int32) * self.token2idx["<s>"]
+        """
+        decoder 第一个位置的输入, 都是 <s>
+        """
+        decoder_inputs = tf.ones((tf.shape(xs[0])[0], 1), tf.int32) * self.token2idx["<s>"]  ### [batch, 1]
         ys = (decoder_inputs, y, y_seqlen, sents2)
 
         memory, sents1 = self.encode(xs, False)
@@ -165,9 +170,9 @@ class Transformer:
         logging.info("Inference graph is being built. Please be patient.")
         for _ in tqdm(range(self.hp.maxlen2)):
             logits, y_hat, y, sents2 = self.decode(ys, memory, False)
-            if tf.reduce_sum(y_hat, 1) == self.token2idx["<pad>"]: break
+            if tf.reduce_sum(y_hat, 1) == self.token2idx["<pad>"]: break #### 如果在一个batch内解码的结果都是PAD则break
 
-            _decoder_inputs = tf.concat((decoder_inputs, y_hat), 1)
+            _decoder_inputs = tf.concat((decoder_inputs, y_hat), 1) ### 更新已经解码的部分
             ys = (_decoder_inputs, y, y_seqlen, sents2)
 
         # monitor a random sample
